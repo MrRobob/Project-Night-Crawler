@@ -14,7 +14,7 @@ mongoose.connect(process.env.MONGO_URI, {
 }).then(() => console.log('MongoDB connected'))
   .catch(err => console.error(err));
 
-// Beispiel-Route für Jobs
+// Beispiel-Route für Job
 app.get('/api/jobs', (req, res) => {
     res.json([{ title: "React Developer", company: "TechCorp", location: "Berlin" }]);
 });
