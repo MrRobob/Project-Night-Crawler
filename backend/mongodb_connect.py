@@ -1,9 +1,12 @@
+import os
 import pymongo
 from pymongo import MongoClient
+from dotenv import load_dotenv
 
-# Deine MongoDB Atlas-Verbindungs-URI
-uri = "mongodb+srv://romansmirnoff:1234@cluster0.fotipne.mongodb.net/"
+load_dotenv()  # Lädt die Umgebungsvariablen aus der .env-Datei
 
+# Deine MongoDB Atlas-Verbindungs-URI befindet sich in der .env-Datei
+uri = os.getenv("MONGO_URI")
 
 # Verbindung herstellen
 client = MongoClient(uri)

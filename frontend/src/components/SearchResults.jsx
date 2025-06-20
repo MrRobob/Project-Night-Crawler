@@ -23,7 +23,7 @@ function SearchResults() {
                 <ul>
                     {results.map((result) => (
                         <li key={result._id}>
-                            <strong>{result.title}</strong> bei {result.company} –{" "}
+                            <strong>{result.title}</strong> bei {result.company} ({result.source})–{" "}
                             <a href={result.link} target="_blank" rel="noopener noreferrer">
                                 Details
                             </a>
