@@ -1,0 +1,11 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Für die Inter-Schriftart, wenn nicht bereits global geladen */
+/* Dies bindet die Schriftart Inter von Google Fonts ein. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+body {
+  font-family: 'Inter', sans-serif;
+}

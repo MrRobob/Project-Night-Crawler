@@ -1,8 +1,8 @@
 Flask
 flask-cors
+flask-mail
+python-dotenv
 requests
 bs4
 pymongo
 apscheduler
-Flask-Mail
-python-dotenv
