@@ -26,15 +26,19 @@ server.py – Hauptserver der Anwendung (Flask)
 📝 Diese findest du in der Datei requirements.txt im backend-Ordner.
 
 
-📦 Installation der Abhängigkeiten:
+📦 1.Installation der Abhängigkeiten:
 
-Python-Umgebung aktivieren:
-- venv\Scripts\activate (Windows)
+Virtuelle Umgebung erstellen im backend:
+- python -m venv venv
+
+Python-Umgebung aktivieren im backend:
+- .\venv\Scripts\activate (Windows)
 
 Installiere alle benötigten Pakete:
-- pip install -r backend/requirements.txt
+- pip install -r requirements.txt
+- python server.py
 
-🔐 .env-Datei erstellen:
+2.🔐 .env-Datei erstellen:
 Lege im Projektverzeichnis (Root) eine Datei namens .env an. Diese sollte die API-Schlüssel und Zugangsdaten enthalten, wie im 
 
 Beispiel:
@@ -51,8 +55,8 @@ MONGO_URI=mongodb+srv://dein_uri
 
 🚀 Backend starten:
 
-Du startest den Flask-Server nicht im backend-Ordner, sondern im Root-Verzeichnis mit folgendem Befehl:
-- python backend/server.py
+Du startest den Flask-Server im backend-Ordner mit folgendem Befehl:
+- python server.py
 
 📡 Der Server läuft dann unter http://127.0.0.1:5000 (oder wie in server.py konfiguriert).
 
