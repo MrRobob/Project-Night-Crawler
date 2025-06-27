@@ -35,7 +35,7 @@ def send_email(to_email, subject, body):
         mail.send(msg)
         print(f"Email erfolgreich gesendet an {to_email}.")
     except Exception as e:
-        print(f"Fehler beim Senden der Email: {e}")
+        print(f"Fehler beim Senden der Email an {to_email}: {e}")
 
 
 @app.route('/jobsuchen', methods=['GET', 'POST'])
@@ -219,16 +219,16 @@ def delete_search_alert(id):
         return jsonify({'error': 'Suchauftrag nicht gefunden'}), 404
 
 
-scheduler = BackgroundScheduler()
+# === HIER BEGINNT DER AKTUALISIERTE CODEBLOCK ===
+# Stelle sicher, dass 'import time' am Anfang der Datei vorhanden ist
 
+scheduler = BackgroundScheduler()
 
 def execute_search_alerts():
     with app.app_context():
+        
         alerts = list(search_alerts_collection.find())
-        print(
-            f"[{datetime.datetime.now()}] Starte Ausführung für "
-            f"{len(alerts)} gespeicherte Suchaufträge."
-        )
+        print(f"[{datetime.datetime.now()}] Starte Ausführung für {len(alerts)} gespeicherte Suchaufträge.")
 
         for alert in alerts:
             alert_id_str = str(alert['_id'])
@@ -238,90 +238,114 @@ def execute_search_alerts():
             email = alert.get('email', '')
 
             if not email:
-                print(
-                    f"Suchauftrag {alert_id_str} hat keine E-Mail-Adresse. "
-                    f"Überspringe."
-                )
+                print(f"Suchauftrag {alert_id_str} hat keine E-Mail-Adresse. Überspringe.")
                 continue
 
-            print(
-                f"Führe Suchauftrag aus für: {keywords} in {location} "
-                f"({radius}km)"
-            )
+            print(f"Führe Suchauftrag aus für: {keywords} in {location} ({radius}km)")
 
-            print(
-                f"-> Crawle bei Arbeitsagentur für Suchauftrag {alert_id_str}..."
-            )
-            new_jobs_baa = crawl_arbeitsagentur(
-                keywords, location, radius, collection
-            )
+            # --- Crawling mit Fehlerbehandlung ---
+            all_new_jobs = []
 
-            all_new_jobs = new_jobs_baa
-            print(
-                f"-> Insgesamt {len(all_new_jobs)} Jobs gefunden."
-            )
+            # --- Crawle bei Arbeitsagentur ---
+            print(f"-> Crawle bei Arbeitsagentur für Suchauftrag {alert_id_str}...")
+            try:
+                # Hier rufen wir crawl_arbeitsagentur auf. Wenn es fehlschlägt, loggen wir den Fehler.
+                new_jobs_baa = crawl_arbeitsagentur(keywords, location, radius, collection)
+                all_new_jobs.extend(new_jobs_baa)
+                print(f"-> Arbeitsagentur: {len(new_jobs_baa)} Jobs gefunden.")
+            except Exception as e:
+                print(f"❌ FEHLER beim Crawlen der Arbeitsagentur für Suchauftrag {alert_id_str}: {e}")
 
-            existing_links = {
-                job['link']
-                for job in search_results_collection.find(
-                    {'search_alert_id': alert_id_str},
-                    {'link': 1}
-                )
-            }
+            # --- Pause zwischen den Crawlern (optional, aber gut für die Stabilität, falls mehrere Quellen laufen würden) ---
+            # time.sleep(2) # Momentan nur ein Crawler, daher nicht zwingend nötig
 
-            unique_new_jobs = [
-                job for job in all_new_jobs
-                if job.get('link') and job['link'] not in existing_links
-            ]
+            # --- Crawle bei StepStone wird jetzt komplett übersprungen ---
+            # Da StepStone Timeouts verursacht und der E-Mail-Versand nicht funktioniert,
+            # deaktivieren wir diesen Teil vorübergehend.
+            # Sobald das StepStone-Problem gelöst ist, kann dieser Block wieder aktiviert werden.
+            
+            # print(f"-> Crawle bei StepStone für Suchauftrag {alert_id_str}...")
+            # try:
+            #     # WICHTIG: Kleine Verzögerung vor dem StepStone-Request!
+            #     # time.sleep(5) 
+            #     # new_jobs_stepstone = crawl_stepstone(keywords, location, radius)
+            #     # all_new_jobs.extend(new_jobs_stepstone)
+            #     # print(f"-> StepStone: {len(new_jobs_stepstone)} Jobs gefunden.")
+            #     print("-> StepStone-Crawl übersprungen wegen bekannter Probleme.")
+            # except Exception as e:
+            #     # Spezifische Behandlung für Timeouts
+            #     if "Read timed out" in str(e) or "ConnectionResetError" in str(e):
+            #         print(f"-> StepStone Read timed out/ConnectionReset für Suchauftrag {alert_id_str}. Überspringe StepStone für diesen Lauf.")
+            #     else:
+            #         print(f"❌ Allgemeiner FEHLER beim Crawlen von StepStone für Suchauftrag {alert_id_str}: {e}")
+            
+            print(f"-> Insgesamt {len(all_new_jobs)} Jobs gefunden (nur von Arbeitsagentur).") # Log angepasst, da nur BAA läuft
 
-            if unique_new_jobs:
-                print(
-                    f"Gefunden: {len(unique_new_jobs)} wirklich neue Jobs für "
-                    f"Suchauftrag {alert_id_str}."
-                )
+            # --- Logik zur Prüfung auf neue Jobs und E-Mail-Versand ---
+            if all_new_jobs: # Nur fortfahren, wenn Jobs gefunden wurden (nur von BAA)
+                existing_links = {
+                    job['link']
+                    for job in search_results_collection.find(
+                        {'search_alert_id': alert_id_str}, 
+                        {'link': 1}
+                    )
+                }
+                
+                unique_new_jobs = [
+                    job for job in all_new_jobs
+                    if job.get('link') and job['link'] not in existing_links
+                ]
 
-                for job in unique_new_jobs:
-                    job['search_alert_id'] = alert_id_str
-                    job['timestamp'] = datetime.datetime.now()
+                if unique_new_jobs:
+                    print(f"Gefunden: {len(unique_new_jobs)} wirklich neue Jobs für Suchauftrag {alert_id_str}.")
 
-                search_results_collection.insert_many(unique_new_jobs)
+                    for job in unique_new_jobs:
+                        job['search_alert_id'] = alert_id_str
+                        job['timestamp'] = datetime.datetime.now()
+                    
+                    search_results_collection.insert_many(unique_new_jobs)
+                    
+                    subject = f"Neue Jobangebote für deine Suche: {', '.join(keywords)}"
+                    body = f"Hallo,\n\nes wurden {len(unique_new_jobs)} neue Stellen für deinen Suchauftrag gefunden:\n\n"
+                    for job in unique_new_jobs:
+                        body += f"- Titel: {job.get('title', 'N/A')}\n"
+                        body += f"  Firma: {job.get('company', 'N/A')}\n"
+                        body += f"  Quelle: {job.get('source', 'N/A')}\n"
+                        body += f"  Link: {job.get('link', 'N/A')}\n\n"
+                    
+                    body += "Viel Erfolg bei deiner Bewerbung!\n\nDein Night-Crawler"
 
-                subject = (
-                    f"Neue Jobangebote für deine Suche: {', '.join(keywords)}"
-                )
-
-                body = (
-                    f"Hallo,\n\nes wurden {len(unique_new_jobs)} neue Stellen "
-                    f"für deinen Suchauftrag gefunden:\n\n"
-                )
-                for job in unique_new_jobs:
-                    body += f"- Titel: {job.get('title', 'N/A')}\n"
-                    body += f"  Firma: {job.get('company', 'N/A')}\n"
-                    body += f"  Quelle: {job.get('source', 'N/A')}\n"
-                    body += f"  Link: {job.get('link', 'N/A')}\n\n"
-
-                body += "Viel Erfolg bei deiner Bewerbung!\n\nDein Night-Crawler"
-
-                send_email(email, subject, body)
+                    send_email(email, subject, body)
+                else:
+                    print(f"Keine neuen Jobs für Suchauftrag {alert_id_str} gefunden.")
             else:
-                print(
-                    f"Keine neuen Jobs für Suchauftrag {alert_id_str} gefunden."
-                )
+                print(f"Keine Jobs von irgendeiner Plattform für Suchauftrag {alert_id_str} gefunden.")
 
+# Scheduler Setup
+# Wir lassen das Intervall auf 'minutes=1' für Testzwecke.
+# Sobald die E-Mail-Funktion stabil läuft, bitte auf 'hours=8' zurückstellen!
+scheduler.add_job(execute_search_alerts, 'interval', minutes=1, id='daily_job_search', max_instances=1) 
+# Die Zeile für 8 Stunden ist hier auskommentiert:
+# scheduler.add_job(execute_search_alerts, 'interval', hours=8, id='daily_job_search', max_instances=1) 
 
-scheduler.add_job(execute_search_alerts, 'interval', minutes=1)
 scheduler.start()
 
-
+# Die Route /get_search_results bleibt unverändert
 @app.route('/get_search_results/<string:alert_id>', methods=['GET'])
 def get_search_results(alert_id):
-    results = list(
-        search_results_collection.find({"search_alert_id": alert_id})
-    )
+    results = list(search_results_collection.find({"search_alert_id": alert_id}))
     for result in results:
         result['_id'] = str(result['_id'])
     return jsonify(results)
 
+if __name__ == '__main__':
+    # Wenn der direkte E-Mail-Test noch laufen soll, ist er hier richtig platziert.
+    # Stellen Sie sicher, dass er das Verhalten der geplanten Benachrichtigungen nicht stört.
+    # Wenn Sie ihn nicht mehr benötigen, kommentieren Sie ihn aus oder entfernen Sie ihn.
+    print("----- DIREKTER TEST DES E-MAIL-VERSANDS (manuell über /test_scheduler_now) -----")
+    # Die folgende Zeile ist für den automatischen Test hier nicht notwendig, aber Sie können sie
+    # hier oder in einer separaten Test-Route lassen, um die Mail-Funktion zu prüfen.
+    # send_email('IhreTestEmail@example.com', 'Test', 'Test') 
+    print("----- DIREKTER E-MAIL TEST BEENDET -----")
 
-if __name__ == '__main__':  # Startet die Flask-App
     app.run(host='0.0.0.0', port=3050)

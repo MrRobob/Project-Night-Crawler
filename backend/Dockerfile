@@ -1,5 +1,8 @@
 # 1. Basis-Image
-FROM python:3.11-slim
+FROM python:3.11-slim-bullseye
+
+# Update system packages to reduce vulnerabilities
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 2. Arbeitsverzeichnis
 WORKDIR /app

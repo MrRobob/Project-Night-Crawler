@@ -266,3 +266,10 @@ select {
 .btn-delete:hover {
   background-color: #c82333;
 }
+/* Fehleranzeige Validierung*/
+.error-message {
+  color: #dc3545;
+  font-size: 0.85em;
+  margin-top: 5px;
+  margin-bottom: 10px;
+}

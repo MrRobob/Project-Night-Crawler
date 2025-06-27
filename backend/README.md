@@ -34,7 +34,7 @@ Virtuelle Umgebung erstellen im backend:
 
 Python-Umgebung aktivieren im backend:
 
-- .\env\Scripts\activate (Windows)
+-.\venv\Scripts\activate (Windows)
 
 Installiere alle benötigten Pakete:
 

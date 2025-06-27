@@ -64,6 +64,7 @@ function App() {
   return (
     <Router>
       <div className="container">
+        <h1>Job-Suche</h1> {/* <-- Sichtbare Überschrift */}
         <Routes>
           <Route
             path="/"
