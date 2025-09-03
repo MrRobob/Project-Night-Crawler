@@ -56,7 +56,7 @@ spec:
     spec:
       containers:
       - name: mongo
-        image: mongo:7
+        image: mongo:8
         ports:
         - containerPort: 27017
         volumeMounts:
@@ -103,7 +103,7 @@ spec:
     spec:
       initContainers:
       - name: wait-for-mongo
-        image: mongo:7
+        image: mongo:8
         command: ["bash", "-lc"]
         args:
           - >
