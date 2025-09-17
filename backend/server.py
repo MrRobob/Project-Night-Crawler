@@ -14,11 +14,10 @@ from bson.objectid import ObjectId
 from apscheduler.schedulers.background import BackgroundScheduler
 from crawler_api_baa import crawl_arbeitsagentur
 import logging
-from logstash_formatter import LogstashFormatterV1
 from logging.handlers import SocketHandler
 from prometheus_flask_exporter import PrometheusMetrics
 import bcrypt
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, UTC, timezone
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from flask_jwt_extended import (
     JWTManager,
@@ -37,32 +36,41 @@ load_dotenv()  # Lädt die Umgebungsvariablen aus der .env-Datei
 logger = logging.getLogger("nightcrawler-backend")
 logger.setLevel(logging.INFO)
 
-handler = SocketHandler("logstash", 5000)  # Name des Logstash-Containers in Docker
-handler.setFormatter(LogstashFormatterV1())
-logger.addHandler(handler)
+# Console als Fallback immer aktiv lassen
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+logger.addHandler(console)
 
-logger.info("Flask backend gestartet — Logstash-Logging aktiviert")
+# Logstash optional
+LOGSTASH_HOST = os.getenv("LOGSTASH_HOST", "logstash")
+LOGSTASH_PORT = int(os.getenv("LOGSTASH_PORT", "5000"))
+
+try:
+    sock = SocketHandler(LOGSTASH_HOST, LOGSTASH_PORT)
+    sock.setLevel(logging.INFO)
+    logger.addHandler(sock)
+    logger.info(f"Logstash handler enabled at {LOGSTASH_HOST}:{LOGSTASH_PORT}")
+except Exception as e:
+    logger.warning(f"Logstash not available ({LOGSTASH_HOST}:{LOGSTASH_PORT}): {e}")
 
 
 app = Flask(__name__)  # Erstellt eine Flask-Instanz
-CORS(app)  # Erlaubt Cross-Origin-Requests
-Talisman(app, content_security_policy=None, force_https=False, strict_transport_security=False )  # Aktiviert Sicherheits-Header
-
-CORS(app, resources={
-    r"/api/*": {"origins": "http://localhost:5173"}
-})
+FRONTEND_ORIGIN = os.getenv("PUBLIC_APP_URL", "http://localhost:5173")
+CORS(app, resources={r"/*": {"origins": [FRONTEND_ORIGIN]}})
+Talisman(app, content_security_policy=None, force_https=False, strict_transport_security=False)  # Aktiviert Sicherheits-Header
 
 
 @app.route("/")
 def index():
     return "Hello, Talisman!"
 
+
 @app.route("/api/test", methods=["GET"])
 def test():
     return jsonify({"status": "ok", "message": "API funktioniert!"})
 
 
-metrics = PrometheusMetrics(app, path="/metrics") # Initialisiert Prometheus-Metriken
+metrics = PrometheusMetrics(app, path="/metrics")  # Initialisiert Prometheus-Metriken
 metrics.info("backend_app", "Nightcrawler Backend", version="1.0.0")
 print("✅ Prometheus metrics endpoint registered: /metrics")
 
@@ -83,6 +91,7 @@ PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "http://localhost:5173")
 
 revoked = db["revoked_tokens"]
 revoked.create_index("jti", unique=True)
+revoked.create_index("exp_dt", expireAfterSeconds=0)
 
 # Flask-Mail initialisieren
 mail = Mail(app)
@@ -96,6 +105,7 @@ try:
 except Exception:
     pass
 
+
 def send_email(to_email, subject, body):
     try:
         with app.app_context():
@@ -105,6 +115,7 @@ def send_email(to_email, subject, body):
     except Exception as e:
         print(f"Fehler beim Senden der Email: {e}")
 
+
 users = db["users"]
 try:
     users.create_index("email", unique=True)
@@ -112,14 +123,17 @@ except Exception:
     # Index existiert ggf. schon oder DB-User hat keine Rechte — safe to ignore in dev
     pass
 
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
 
 def check_password(password: str, hashed: str) -> bool:
     try:
         return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False
+
 
 def issue_tokens(user_id):
     """Return access, refresh (strings). identity is user_id as string."""
@@ -128,20 +142,24 @@ def issue_tokens(user_id):
     refresh = create_refresh_token(identity=sub)
     return access, refresh
 
+
 # Email verification token helpers
 def generate_email_token(user_id: str) -> str:
     return email_signer.dumps({"uid": str(user_id)}, salt="verify")
 
-def verify_email_token(token: str, max_age: int = 60*60*24) -> str | None:
+
+def verify_email_token(token: str, max_age: int = 60 * 60 * 24) -> str | None:
     try:
         data = email_signer.loads(token, salt="verify", max_age=max_age)
         return data.get("uid")
     except (SignatureExpired, BadSignature):
         return None
 
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"}), 200
+
 
 @app.route('/jobsuchen', methods=['GET', 'POST'])
 @jwt_required()
@@ -167,7 +185,7 @@ def jobsuchen():
         for job in new_jobs:
             job['bookmark'] = False
             job["userId"] = uid
-        
+
         # Bookmarks schützen (nicht doppeln)
         bookmarked_jobs = [
             {**job, '_id': str(job['_id'])}
@@ -178,9 +196,9 @@ def jobsuchen():
         for new_job in new_jobs:
             # nicht einfügen, wenn als Bookmark schon vorhanden
             if any(
-                b['title'] == new_job.get('title') and
-                b['company'] == new_job.get('company') and
-                b['link'] == new_job.get('link')
+                b['title'] == new_job.get('title')
+                and b['company'] == new_job.get('company')
+                and b['link'] == new_job.get('link')
                 for b in bookmarked_jobs
             ):
                 continue
@@ -214,12 +232,14 @@ def jobsuchen():
         print(f"{len(jobs)} Jobs aus MongoDB abgerufen.")
         return jsonify(jobs)
 
+
 @app.route('/reset_jobs', methods=['POST'])
 @jwt_required()
 def reset_jobs():
     uid = get_jwt_identity()
     res = collection.delete_many({"bookmark": False, "userId": uid})
     return jsonify({"deleted": res.deleted_count})
+
 
 @app.route('/update_bookmark', methods=['POST'])
 @jwt_required()
@@ -249,6 +269,7 @@ def update_bookmark():
 
     return jsonify({'success': True})
 
+
 @app.route('/bookmarked_jobs', methods=['GET'])
 @jwt_required()
 def get_bookmarked_jobs():
@@ -264,6 +285,7 @@ def get_bookmarked_jobs():
         job['_id'] = str(job['_id'])
     print(f"{len(jobs)} bookmarked Jobs aus MongoDB abgerufen.")
     return jsonify(jobs)
+
 
 @app.route('/save_search', methods=['POST'])
 @jwt_required()
@@ -293,6 +315,7 @@ def save_search():
         print("Initialer Autoscan nach save_search fehlgeschlagen:", e)
     return jsonify({'success': True, 'search_alert': search_alerts_data})
 
+
 @app.route('/search_alerts', methods=['GET'])
 @jwt_required()
 def get_search_alerts():
@@ -309,6 +332,7 @@ def get_search_alerts():
 
     return jsonify(search_alerts)
 
+
 @app.route('/delete_search_alert/<string:id>', methods=['DELETE'])
 @jwt_required()
 def delete_search_alert(id):
@@ -319,7 +343,9 @@ def delete_search_alert(id):
     else:
         return jsonify({'error': 'Suchauftrag nicht gefunden'}), 404
 
+
 scheduler = BackgroundScheduler()
+
 
 def execute_search_alerts():
     # Job bekommt einen eigenen App-Kontext (z. B. wenn via Thread/Timer aufgerufen)
@@ -399,8 +425,20 @@ def execute_search_alerts():
             else:
                 print(f"0 neue Ergebnisse für Suchauftrag {alert['_id']} (evtl. alles schon vorhanden).")
 
-scheduler.add_job(execute_search_alerts, 'interval', minutes=3)
-scheduler.start()
+
+scheduler.add_job(execute_search_alerts, 'interval', hours=8)
+
+
+def start_scheduler_once():
+    # im echten Main-Prozess starten (nicht im Reloader)
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+        if not scheduler.running:
+            scheduler.start()
+            app.logger.info("APScheduler started")
+
+
+start_scheduler_once()
+
 
 @app.route('/get_search_results/<string:alert_id>', methods=['GET'])
 @jwt_required()
@@ -412,6 +450,7 @@ def get_search_results(alert_id):
     for result in results:
         result['_id'] = str(result['_id'])
     return jsonify(results)
+
 
 @app.route("/auth/register", methods=["POST"])
 def register():
@@ -437,14 +476,15 @@ def register():
     send_email(email, "Verify your account", f"Klicke hier: {verify_url}")
 
     return jsonify({"ok": True})
-    
+
+
 @app.route("/auth/verify-email", methods=["POST"])
 def verify_email():
     token = (request.json or {}).get("token")
     if not token:
         return jsonify({"error": "token required"}), 400
     try:
-        data = email_signer.loads(token, salt="verify", max_age=60*60*24)
+        data = email_signer.loads(token, salt="verify", max_age=60 * 60 * 24)
     except SignatureExpired:
         return jsonify({"error": "token expired"}), 400
     except BadSignature:
@@ -453,6 +493,7 @@ def verify_email():
     uid = data.get("uid")
     users.update_one({"_id": ObjectId(uid)}, {"$set": {"emailVerified": True}})
     return jsonify({"ok": True})
+
 
 @app.route("/auth/login", methods=["POST"])
 def login():
@@ -469,6 +510,7 @@ def login():
     access, refresh = issue_tokens(user["_id"])
     return jsonify({"access": access, "refresh": refresh})
 
+
 @app.route("/auth/request-password-reset", methods=["POST"])
 def request_password_reset():
     data = request.json or {}
@@ -477,7 +519,7 @@ def request_password_reset():
     if not user:
         # Absichtlich generisch, damit Angreifer nicht erkennen ob Email existiert
         return jsonify({"ok": True})
-    
+
     token = email_signer.dumps({"uid": str(user["_id"])}, salt="pw-reset")
     reset_url = f"{PUBLIC_APP_URL}/reset-password?token={token}"
 
@@ -506,16 +548,20 @@ def reset_password():
 
     return jsonify({"ok": True})
 
+
 @jwt.token_in_blocklist_loader
 def check_if_token_revoked(jwt_header, jwt_payload):
     jti = jwt_payload["jti"]
     return revoked.find_one({"jti": jti}) is not None
 
+
 @app.route("/auth/logout", methods=["POST"])
 @jwt_required()
 def logout():
     jti = get_jwt()["jti"]
-    revoked.insert_one({"jti": jti, "exp": get_jwt()["exp"]})
+    exp_unix = get_jwt()["exp"]
+    exp_dt = datetime.fromtimestamp(exp_unix, tz=timezone.utc)
+    revoked.insert_one({"jti": jti, "exp": exp_unix, "exp_dt": exp_dt})
     return jsonify({"msg": "token revoked"})
 
 
