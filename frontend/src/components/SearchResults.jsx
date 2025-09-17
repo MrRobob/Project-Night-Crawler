@@ -1,27 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { apiFetch } from "../lib/auth";
-
-const NavButton = ({ to, children }) => {
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const active = pathname === to;
-
-  return (
-    <button
-      type="button"
-      onClick={() => navigate(to)}
-      className={`w-full text-left rounded-lg px-3 py-2 border transition
-        ${
-          active
-            ? "text-white border-graphite-700 bg-graphite-900"
-            : "text-graphite-300 hover:bg-graphite-900 hover:text-white border-graphite-800"
-        }`}
-    >
-      {children}
-    </button>
-  );
-};
 
 export default function SearchResults() {
   const { alertId } = useParams();
@@ -38,107 +17,45 @@ export default function SearchResults() {
 
   return (
     <div className="mx-auto max-w-[1400px] w-full px-3 md:px-6 lg:px-8 py-4">
-      {/* Logo + Titel */}
-      <header className="flex items-center gap-2">
-        <svg
-          className="h-8 w-8"
-          viewBox="0 0 64 64"
-          fill="none"
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id="nc-accent" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#A5B4FC" />
-              <stop offset="100%" stopColor="#6366F1" />
-            </linearGradient>
-            <mask id="nc-crescent">
-              <rect width="64" height="64" fill="black" />
-              <circle cx="28" cy="28" r="14" fill="white" />
-              <circle cx="34" cy="24" r="14" fill="black" />
-            </mask>
-          </defs>
-          <circle
-            cx="28"
-            cy="28"
-            r="14"
-            stroke="#E5E7EB"
-            strokeWidth="2"
-            strokeLinecap="round"
-            fill="none"
-          />
-          <rect
-            width="64"
-            height="64"
-            fill="url(#nc-accent)"
-            mask="url(#nc-crescent)"
-          />
-          <line
-            x1="38"
-            y1="38"
-            x2="46.5"
-            y2="46.5"
-            stroke="#E5E7EB"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-        <h1 className="text-[18px] md:text-[20px] font-semibold tracking-tight bg-gradient-to-r from-[#A5B4FC] to-[#6366F1] bg-clip-text text-transparent">
-          Night Crawler
-        </h1>
-      </header>
+      <div className="rounded-2xl border border-graphite-800 bg-graphite-900/60 p-4 md:p-6">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-lg font-medium text-graphite-100">
+            Suchergebnisse
+          </h2>
+        </div>
 
-      {/* Sidebar + Main */}
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
-        <aside className="rounded-2xl border border-graphite-800 bg-graphite-900/60 p-3 md:p-4 md:sticky md:top-4 h-fit">
-          <nav className="grid gap-2">
-            <NavButton to="/">Suche</NavButton>
-            <NavButton to="/bookmarked">Lesezeichen</NavButton>
-            <NavButton to="/search_alerts">Suchaufträge</NavButton>
-          </nav>
-        </aside>
-
-        <main className="grid gap-4">
-          <div className="rounded-2xl border border-graphite-800 bg-graphite-900/60 p-4 md:p-6">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h2 className="text-lg font-medium text-graphite-100">
-                Suchergebnisse
-              </h2>
-            </div>
-
-            {results.length === 0 ? (
-              <p className="text-graphite-400">Keine Ergebnisse gefunden.</p>
-            ) : (
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
-                {results.map((result) => (
-                  <li
-                    key={result._id}
-                    className="w-full rounded-xl border border-graphite-800 bg-graphite-900/60 p-4 hover:bg-graphite-900 transition"
-                  >
-                    <div className="flex items-start gap-3">
-                      {/* Text rechts – 3 Zeilen */}
-                      <div className="min-w-0">
-                        <div className="text-graphite-50 font-medium truncate">
-                          {result.title}
-                        </div>
-                        <div className="text-sm text-graphite-300 mt-0.5">
-                          {result.company} ({result.source})
-                        </div>
-                        <a
-                          href={result.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-400 hover:text-indigo-300 mt-1 inline-block"
-                        >
-                          Details
-                        </a>
-                      </div>
+        {results.length === 0 ? (
+          <p className="text-graphite-400">Keine Ergebnisse gefunden.</p>
+        ) : (
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+            {results.map((result) => (
+              <li
+                key={result._id}
+                className="w-full rounded-xl border border-graphite-800 bg-graphite-900/60 p-4 hover:bg-graphite-900 transition"
+              >
+                <div className="flex items-start gap-3">
+                  {/* Text rechts – 3 Zeilen */}
+                  <div className="min-w-0">
+                    <div className="text-graphite-50 font-medium truncate">
+                      {result.title}
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </main>
+                    <div className="text-sm text-graphite-300 mt-0.5">
+                      {result.company} ({result.source})
+                    </div>
+                    <a
+                      href={result.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-400 hover:text-indigo-300 mt-1 inline-block"
+                    >
+                      Details
+                    </a>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

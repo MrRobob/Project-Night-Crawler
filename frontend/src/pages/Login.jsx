@@ -12,7 +12,7 @@ export default function Login() {
     setErr("");
     const r = await login(email, password);
     if (r?.error) setErr(r.error);
-    else window.location.href = "/";
+    else window.location.href = "/app";
   };
 
   return (

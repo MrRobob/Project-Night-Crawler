@@ -12,6 +12,7 @@ DEFAULT_HEADERS = {
     "Accept": "*/*",
 }
 
+
 def _fetch_detail_link(refnr: str | None = None, hash_id: str | None = None, session: requests.Session | None = None) -> str | None:
     if not session:
         session = requests.Session()
@@ -25,7 +26,7 @@ def _fetch_detail_link(refnr: str | None = None, hash_id: str | None = None, ses
     try:
         r = session.get(details_url, headers=DEFAULT_HEADERS, timeout=10)
         if r.ok:
-            data = r.json() if r.headers.get("content-type","").startswith("application/json") else {}
+            data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
             # Häufige Felder für den externen Bewerbungs-/Anzeigen-Link:
             return (
                 data.get("externeUrl")
@@ -38,11 +39,13 @@ def _fetch_detail_link(refnr: str | None = None, hash_id: str | None = None, ses
         pass
     return None
 
+
 def get_headers():
     api_key = os.getenv("BAA_API_KEY")
     if not api_key:
         raise RuntimeError("❌ BAA_API_KEY ist nicht gesetzt!")
     return {"X-API-Key": api_key}
+
 
 def crawl_arbeitsagentur(keywords, location, radius, collection=collection):
     # Crawler für die Arbeitsagentur-API
