@@ -1,0 +1,20 @@
+{
+  "family": "nightcrawler-frontend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "nightcrawler-frontend",
+      "image": "your-frontend-image:latest",
+      "portMappings": [
+        {
+          "containerPort": 5173,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true
+    }
+  ]
+}
