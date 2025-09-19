@@ -9,7 +9,7 @@ export default function Landing() {
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 1060 240"
-          className="h-28 md:h-36 w-auto mx-auto mb-6"
+          className="h-22 md:h-36 w-auto mx-auto mb-6"
           aria-label="Night Crawler – Hero"
         >
           <defs>
