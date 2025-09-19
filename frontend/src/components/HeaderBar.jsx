@@ -9,7 +9,7 @@ export default function HeaderBar() {
     <header className="flex items-center gap-2">
       <Link to="/">
         <svg
-          className="h-8 w-auto"
+          className="h-6 md:h-8 w-auto flex-shrink-0"
           viewBox="0 0 320 64"
           fill="none"
           role="img"
@@ -67,14 +67,16 @@ export default function HeaderBar() {
       </Link>
 
       {/* Rechts: nur wenn eingeloggt */}
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-2 md:gap-3">
         {loggedIn ? (
           <>
-            <span className="text-sm text-graphite-300">{email}</span>
+            <span className="hidden sm:inline text-xs md:text-sm text-graphite-300 max-w-[40vw] truncate">
+              {email}
+            </span>
             <button
               type="button"
               onClick={logout}
-              className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500"
+              className="px-2 py-1 md:px-3 md:py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 text-xs md:text-sm"
             >
               Logout
             </button>

@@ -8,7 +8,7 @@ export default function Landing() {
         {/* neues Inline-SVG Logo zentriert */}
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 1060 240"
+          viewBox="0 0 980 240"
           className="h-22 md:h-36 w-auto mx-auto mb-6"
           aria-label="Night Crawler – Hero"
         >
@@ -18,8 +18,7 @@ export default function Landing() {
               <stop offset="100%" stopColor="#6366F1" />
             </linearGradient>
 
-            {/* Sichel-Maske: Weiß sichtbar, Schwarz schneidet aus.
-            r=58 liegt direkt an der Glasinnenkante (Ring r=60, stroke=5) */}
+            {/* Sichel-Maske: Weiß sichtbar, Schwarz schneidet aus */}
             <mask id="nc-crescent-hero">
               <rect width="980" height="240" fill="black" />
               <circle cx="90" cy="90" r="58" fill="white" />
@@ -27,9 +26,8 @@ export default function Landing() {
             </mask>
           </defs>
 
-          {/* Lupe */}
-          <g transform="translate(88,-28)">
-            {/* Ring */}
+          {/* Lupe (um 88px nach links gezogen) */}
+          <g transform="translate(10,-28)">
             <circle
               cx="90"
               cy="90"
@@ -38,7 +36,6 @@ export default function Landing() {
               stroke="#E5E7EB"
               strokeWidth="5"
             />
-            {/* Glas mit Sichel (Gradient) */}
             <rect
               x="32"
               y="32"
@@ -47,8 +44,7 @@ export default function Landing() {
               fill="url(#nc-accent)"
               mask="url(#nc-crescent-hero)"
             />
-            {/* Griff: echtes Rechteck, rund, außerhalb des Glases */}
-
+            {/* Griff, Glas-seitig butt, außen rund */}
             <path
               d="M49,135 L8,176"
               stroke="#E5E7EB"
@@ -56,7 +52,6 @@ export default function Landing() {
               strokeLinecap="butt"
               fill="none"
             />
-
             <path
               d="M8,176 L0,184"
               stroke="#E5E7EB"
@@ -64,8 +59,7 @@ export default function Landing() {
               strokeLinecap="round"
               fill="none"
             />
-
-            {/* Krater: auf der hellen Sichel (rechte/untere Seite) */}
+            {/* Krater auf der hellen Sichel */}
             <g fill="#E5E7EB" opacity="0.65">
               <circle cx="42" cy="75" r="6" />
               <circle cx="45" cy="100" r="4" />
@@ -75,8 +69,8 @@ export default function Landing() {
             </g>
           </g>
 
-          {/* Schriftzug – beide Wörter im Header-Gradient, kein Weiß */}
-          <g transform="translate(120,22)">
+          {/* Schriftzug (ebenfalls 88px nach links) */}
+          <g transform="translate(42,22)">
             <text
               x="140"
               y="78"
@@ -99,8 +93,8 @@ export default function Landing() {
             </text>
           </g>
 
-          {/* Badge – größer, näher dran, keine Text-Überlappung */}
-          <g transform="translate(600,38)">
+          {/* Badge (ebenfalls 88px nach links) */}
+          <g transform="translate(522,38)">
             <rect
               width="375"
               height="170"

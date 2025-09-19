@@ -25,6 +25,9 @@ function App() {
   const [jobs, setJobs] = useState([]); // Array zum Speichern der gefundenen Jobs
 
   useEffect(() => {
+    const onApp = window.location.pathname.startsWith("/app");
+    const access = localStorage.getItem("access");
+    if (!onApp || !access) return; // nur im App-Bereich und wenn eingeloggt
     (async () => {
       const res = await apiFetch("/jobsuchen");
       if (res.ok) setJobs(await res.json());
