@@ -17,7 +17,7 @@ export default function Register() {
 
   return (
     <div className="mx-auto max-w-[480px] mt-10 rounded-2xl border border-graphite-800 bg-graphite-900/60 p-6">
-      <h1 className="text-xl text-graphite-100 mb-4">Registrieren Sie bitte langsam</h1>
+      <h1 className="text-xl text-graphite-100 mb-4">Registrieren Sie bitte</h1>
       <form onSubmit={submit} className="grid gap-3">
         <input
           className="rounded-xl bg-graphite-900/60 border border-graphite-800 px-3 py-2 text-graphite-100"
