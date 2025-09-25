@@ -167,7 +167,7 @@ Empfehlung: Workflows als „required checks“ in Branch Protection konfigurier
 
 ---
 
-## Deployment
+## Deployment  (Azure)
 
 ### Docker Images
 
@@ -215,6 +215,47 @@ gunicorn server:app -b 0.0.0.0:${PORT:-3050}
 kubectl apply -f all-in-one.yaml
 kubectl delete all --all -n nightcrawler
 ```
+
+---
+
+## Deployment (AWS)
+
+### Docker Images (Backend & Frontend)
+
+mrrobob/nightcrawler-backend  
+mrrobob/nightcrawler-frontend
+
+### Docker Compose (EC2 Deployment)
+
+Siehe docker-compose.yml (Ports: Backend 3050, Frontend 5173).
+
+### AWS EC2
+
+Eine einzelne EC2-Instanz (Ubuntu Linux) dient als Host für alle Services.  
+Auf der Instanz sind Docker und Docker Compose installiert.  
+Das Projekt wird aus GitHub geklont, die .env-Datei enthält alle notwendigen Variablen.  
+Die Container für Backend, Frontend und MongoDB werden über `docker compose up -d` gestartet.  
+Docker Engine lädt die Images automatisch aus Docker Hub.
+
+### Secrets (.env auf EC2):
+
+MONGO_URI, JWT_SECRET, optional BAA_API_KEY  
+MAIL_* Variablen, PUBLIC_APP_URL (Produktions-Frontend-URL)
+
+### Backend – App Settings:
+
+Läuft mit gunicorn auf Port 3050  
+Verbindet sich mit MongoDB Atlas über MONGO_URI
+
+### Frontend – App Settings:
+
+VITE_API_URL zeigt auf die öffentliche Backend-Adresse  
+Keine lokalen URLs verwenden
+
+### CORS/Login Hinweis:
+
+Backend-CORS erlaubt ausschließlich die öffentliche Frontend-Domain  
+Frontend darf in Produktion nicht auf localhost zeigen
 
 ---
 
