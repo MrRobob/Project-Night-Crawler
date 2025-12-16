@@ -1,25 +1,25 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from flask_mail import Mail, Message
-from flask_talisman import Talisman
-import os
-from dotenv import load_dotenv
-from mongodb_connect import (
+from flask import Flask, request, jsonify   # Wird für die API-Endpunkte verwendet
+from flask_cors import CORS                 # Ermöglicht Cross-Origin Resource Sharing
+from flask_mail import Mail, Message        # Für das Senden von E-Mails
+from flask_talisman import Talisman         # Fügt Sicherheits-Header hinzu
+import os                                   # Für Umgebungsvariablen
+from dotenv import load_dotenv              # Lädt Umgebungsvariablen aus einer .env-Datei
+from mongodb_connect import (               # MongoDB-Verbindung und Sammlungen
     collection,
     search_alerts_collection,
     search_results_collection,
     db,
 )
-from bson.objectid import ObjectId
-from apscheduler.schedulers.background import BackgroundScheduler
-from crawler_api_baa import crawl_arbeitsagentur
-import logging
-from logging.handlers import SocketHandler
-from prometheus_flask_exporter import PrometheusMetrics
-import bcrypt
-from datetime import datetime, timedelta, UTC, timezone
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
-from flask_jwt_extended import (
+from bson.objectid import ObjectId                                                  # Für die Arbeit mit MongoDB ObjectIds
+from apscheduler.schedulers.background import BackgroundScheduler                   # Für geplante Aufgaben
+from crawler_api_baa import crawl_arbeitsagentur                                    # Importiert den Crawler für die Arbeitsagentur
+import logging                                                                      # Für Logging
+from logging.handlers import SocketHandler                                          # Für Logstash-Logging
+from prometheus_flask_exporter import PrometheusMetrics                             # Für Prometheus-Metriken
+import bcrypt                                                                       # Für Passwort-Hashing
+from datetime import datetime, timedelta, UTC, timezone                             # Für Zeit- und Datumsoperationen
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired     # Für das Signieren und Verifizieren von Tokens
+from flask_jwt_extended import (                                                    # Für JWT-Authentifizierung (JSON Web Tokens)
     JWTManager,
     create_access_token,
     create_refresh_token,
@@ -53,49 +53,53 @@ try:
 except Exception as e:
     logger.warning(f"Logstash not available ({LOGSTASH_HOST}:{LOGSTASH_PORT}): {e}")
 
-
+# Flask-App und Erweiterungen initialisieren
 app = Flask(__name__)  # Erstellt eine Flask-Instanz
-FRONTEND_ORIGIN = os.getenv("PUBLIC_APP_URL", "http://localhost:5173")
-CORS(app, resources={r"/*": {"origins": [FRONTEND_ORIGIN]}})
+FRONTEND_ORIGIN = os.getenv("PUBLIC_APP_URL", "http://localhost:5173")  # Erlaubte Origin für CORS
+CORS(app, resources={r"/*": {"origins": [FRONTEND_ORIGIN]}})  # Aktiviert CORS für die Flask-App
 Talisman(app, content_security_policy=None, force_https=False, strict_transport_security=False)  # Aktiviert Sicherheits-Header
 
 
+# Einfacher Test-Endpunkt
 @app.route("/")
 def index():
-    return "Hello, Talisman!"
+    return "Testendpoint"
 
 
+# Einfacher Test-Endpunkt
 @app.route("/api/test", methods=["GET"])
 def test():
     return jsonify({"status": "ok", "message": "API funktioniert!"})
 
 
+# Prometheus-Metriken initialisieren
 metrics = PrometheusMetrics(app, path="/metrics")  # Initialisiert Prometheus-Metriken
 metrics.info("backend_app", "Nightcrawler Backend", version="1.0.0")
 print("✅ Prometheus metrics endpoint registered: /metrics")
 
-
-app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
-app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME')
+# Flask-Konfiguration
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')                     # Konfiguriert den Mail-Server
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))               # Konfiguriert den Mail-Port
+app.config['MAIL_USE_TLS'] = True                                        # Aktiviert TLS für den Mail-Server
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')                 # Mail-Benutzername aus Umgebungsvariablen
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')                 # Mail-Passwort aus Umgebungsvariablen
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME')           # Standard-Absender für Mails
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET", "dev-change-me")  # setze im Prod per ENV
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)
-EMAIL_SECRET = os.getenv("EMAIL_SECRET", "dev-email-secret")
-email_signer = URLSafeTimedSerializer(EMAIL_SECRET)
-jwt = JWTManager(app)
-PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "http://localhost:5173")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)           # Access Token Ablaufzeit
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)              # Refresh Token Ablaufzeit
+EMAIL_SECRET = os.getenv("EMAIL_SECRET", "dev-email-secret")             # setze im Prod per ENV
+email_signer = URLSafeTimedSerializer(EMAIL_SECRET)                      # Initialisiert den URL-Safe-Timed-Serializer, der für das Signieren und Verifizieren von Tokens verwendet wird
+jwt = JWTManager(app)                                                    # Initialisiert den JWT-Manager für die Flask-App
+PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "http://localhost:5173")    # URL der öffentlichen App, wird für Links in E-Mails verwendet
 
-revoked = db["revoked_tokens"]
-revoked.create_index("jti", unique=True)
-revoked.create_index("exp_dt", expireAfterSeconds=0)
+revoked = db["revoked_tokens"]                                           # Sammlung für widerrufene Tokens
+revoked.create_index("jti", unique=True)                                 # Index auf "jti" für schnelle Suche von widerrufenen Tokens
+revoked.create_index("exp_dt", expireAfterSeconds=0)                     # Automatisches Entfernen abgelaufener Tokens
 
 # Flask-Mail initialisieren
 mail = Mail(app)
 
+# MongoDB-Indizes erstellen
 try:
     search_results_collection.create_index(
         [("search_alert_id", 1), ("link", 1)],
@@ -106,6 +110,7 @@ except Exception:
     pass
 
 
+# Hilfsfunktion zum Senden von E-Mails
 def send_email(to_email, subject, body):
     try:
         with app.app_context():
@@ -116,6 +121,7 @@ def send_email(to_email, subject, body):
         print(f"Fehler beim Senden der Email: {e}")
 
 
+# MongoDB-Sammlung für Benutzer
 users = db["users"]
 try:
     users.create_index("email", unique=True)
@@ -124,10 +130,12 @@ except Exception:
     pass
 
 
+# Passwort-Hashing und Überprüfung
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
+# Überprüft ein Passwort gegen einen gehashten Wert
 def check_password(password: str, hashed: str) -> bool:
     try:
         return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
@@ -135,6 +143,7 @@ def check_password(password: str, hashed: str) -> bool:
         return False
 
 
+# JWT Token Ausgabe
 def issue_tokens(user_id):
     """Return access, refresh (strings). identity is user_id as string."""
     sub = str(user_id)
@@ -143,11 +152,12 @@ def issue_tokens(user_id):
     return access, refresh
 
 
-# Email verification token helpers
+# E-Mail-Verifikationstoken generieren und verifizieren
 def generate_email_token(user_id: str) -> str:
     return email_signer.dumps({"uid": str(user_id)}, salt="verify")
 
 
+# Überprüft und decodiert ein E-Mail-Verifikationstoken
 def verify_email_token(token: str, max_age: int = 60 * 60 * 24) -> str | None:
     try:
         data = email_signer.loads(token, salt="verify", max_age=max_age)
@@ -156,15 +166,17 @@ def verify_email_token(token: str, max_age: int = 60 * 60 * 24) -> str | None:
         return None
 
 
+# Health-Check Endpoint
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"}), 200
 
 
+# Haupt-Endpunkt für die Jobsuche und -speicherung
 @app.route('/jobsuchen', methods=['GET', 'POST'])
-@jwt_required()
+@jwt_required()                    # Nur für authentifizierte Benutzer
 def jobsuchen():
-    uid = get_jwt_identity()
+    uid = get_jwt_identity()       # Holt die Benutzer-ID aus dem JWT
 
     if request.method == 'POST':
         data = request.json
@@ -172,16 +184,17 @@ def jobsuchen():
         location = data.get('location', '')
         radius = int(data.get('radius', '30'))
 
-        # (A) ZUERST: alles nicht-gemerkte löschen
+        # alte Suchergebnisse löschen (nicht gespeicherte)
         collection.delete_many({"bookmark": False, "userId": uid})
         print(f"[{uid}] Alte (nicht gespeicherten) Jobs gelöscht.")
 
+        # Suchen & normalisieren
         print("Scraping gestartet mit:", keywords, location, radius)
         new_jobs_stepstone = []
         new_jobs_arbeitsagentur = crawl_arbeitsagentur(keywords, location, radius, None)
         new_jobs = new_jobs_stepstone + (new_jobs_arbeitsagentur or [])
 
-        # (C) vorbereiten & einfügen (einmalig, aus dem Server)
+        # Vorbereiten & einfügen (einmalig, aus dem Server)
         for job in new_jobs:
             job['bookmark'] = False
             job["userId"] = uid
@@ -189,12 +202,12 @@ def jobsuchen():
         # Bookmarks schützen (nicht doppeln)
         bookmarked_jobs = [
             {**job, '_id': str(job['_id'])}
-            for job in collection.find({"bookmark": True, "userId": uid})  # <-- scoped
+            for job in collection.find({"bookmark": True, "userId": uid})
         ]
 
+        # Doppelungen rausfiltern
         unique_jobs = []
         for new_job in new_jobs:
-            # nicht einfügen, wenn als Bookmark schon vorhanden
             if any(
                 b['title'] == new_job.get('title')
                 and b['company'] == new_job.get('company')
@@ -203,7 +216,6 @@ def jobsuchen():
             ):
                 continue
 
-            # EXISTENZPRÜFUNG: per natürlichem Schlüssel statt _id
             exists = collection.count_documents(
                 {
                     "userId": uid,
@@ -219,13 +231,13 @@ def jobsuchen():
                 unique_jobs.append(new_job)
 
         print(f"{len(unique_jobs)} Jobs in MongoDB gespeichert.")
-        return jsonify(unique_jobs)
+        return jsonify(unique_jobs)     # neue Jobs zurückgeben
 
     elif request.method == 'GET':
         jobs = [
             {**job, '_id': str(job['_id'])}
             for job in collection.find(
-                {"bookmark": False, "userId": uid},  # <-- scoped
+                {"bookmark": False, "userId": uid},
                 {'title': 1, 'company': 1, 'link': 1, 'bookmark': 1, '_id': 1}
             )
         ]
@@ -233,6 +245,7 @@ def jobsuchen():
         return jsonify(jobs)
 
 
+# Endpoint zum Zurücksetzen aller nicht gespeicherten Jobs
 @app.route('/reset_jobs', methods=['POST'])
 @jwt_required()
 def reset_jobs():
@@ -241,6 +254,7 @@ def reset_jobs():
     return jsonify({"deleted": res.deleted_count})
 
 
+# Endpoint zum Aktualisieren des Bookmark-Status eines Jobs
 @app.route('/update_bookmark', methods=['POST'])
 @jwt_required()
 def update_bookmark():
@@ -270,6 +284,7 @@ def update_bookmark():
     return jsonify({'success': True})
 
 
+# Endpoint zum Abrufen aller als Lesezeichen markierten Jobs
 @app.route('/bookmarked_jobs', methods=['GET'])
 @jwt_required()
 def get_bookmarked_jobs():
@@ -277,7 +292,7 @@ def get_bookmarked_jobs():
 
     jobs = list(
         collection.find(
-            {"bookmark": True, "userId": uid},  # <-- scoped
+            {"bookmark": True, "userId": uid},
             {'title': 1, 'company': 1, 'link': 1, 'bookmark': 1}
         )
     )
@@ -287,6 +302,7 @@ def get_bookmarked_jobs():
     return jsonify(jobs)
 
 
+# Endpoint zum Speichern eines Suchauftrags
 @app.route('/save_search', methods=['POST'])
 @jwt_required()
 def save_search():
@@ -308,14 +324,15 @@ def save_search():
     }
     result = search_alerts_collection.insert_one(search_alerts_data)
     search_alerts_data['_id'] = str(result.inserted_id)
-    # optional: direkt initiale Ergebnisse holen & speichern
+    # Direkt initiale Ergebnisse holen & speichern
     try:
-        execute_search_alerts()  # verarbeitet alle Alerts; minimal & genügt hier
+        execute_search_alerts()  # verarbeitet alle Alerts
     except Exception as e:
         print("Initialer Autoscan nach save_search fehlgeschlagen:", e)
     return jsonify({'success': True, 'search_alert': search_alerts_data})
 
 
+# Endpoint zum Abrufen aller gespeicherten Suchaufträge
 @app.route('/search_alerts', methods=['GET'])
 @jwt_required()
 def get_search_alerts():
@@ -333,6 +350,7 @@ def get_search_alerts():
     return jsonify(search_alerts)
 
 
+# Endpoint zum Löschen eines Suchauftrags
 @app.route('/delete_search_alert/<string:id>', methods=['DELETE'])
 @jwt_required()
 def delete_search_alert(id):
@@ -344,11 +362,12 @@ def delete_search_alert(id):
         return jsonify({'error': 'Suchauftrag nicht gefunden'}), 404
 
 
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler()  # Initialisiert den Hintergrund-Scheduler
 
 
+# Geplante Aufgabe zum Ausführen gespeicherter Suchaufträge
 def execute_search_alerts():
-    # Job bekommt einen eigenen App-Kontext (z. B. wenn via Thread/Timer aufgerufen)
+    # Job bekommt einen eigenen App-Kontext
     with app.app_context():
         alerts = list(search_alerts_collection.find())
         print(f"[{datetime.now(UTC)}] Ausführung der gespeicherten Suchaufträge gestartet.")
@@ -359,7 +378,7 @@ def execute_search_alerts():
             radius = int(alert.get('radius', 30))
             email = alert.get('email', '')
 
-# --- Arbeitsagentur-Call (keine Normalisierung) ---
+            # Arbeitsagentur-Call
             try:
                 # 4. Parameter explizit auf None -> Crawler speichert NICHT in 'collection'
                 raw_jobs = crawl_arbeitsagentur(keywords, location, radius, None) or []
@@ -367,20 +386,20 @@ def execute_search_alerts():
                 print(f"BAA-Crawl fehlgeschlagen für Alert {alert['_id']}: {e}")
                 continue
 
-            # Felder 1:1 übernehmen, nur Zuordnung + Timestamp setzen
+            # Felder übernehmen + Timestamp setzen
             for job in raw_jobs:
                 job['search_alert_id'] = str(alert['_id'])
                 job['userId'] = alert.get('userId')
                 job['timestamp'] = datetime.now(UTC)
 
-            # Dedupe pro Alert – genau wie bei dir, nur mit get() falls 'link' fehlt
+            # Dedupe pro Alert mit get() falls 'link' fehlt
             existing_links = {
                 d.get('link') for d in search_results_collection.find(
                     {'search_alert_id': str(alert['_id'])},
                     {'link': 1, '_id': 0}
                 )
             }
-            seen = set()
+            seen = set()        # set() benutzt man um Duplikate zu tracken
             unique_jobs = []
             for j in raw_jobs:
                 lnk = (j.get('link') or "").strip()
@@ -395,7 +414,8 @@ def execute_search_alerts():
                 try:
                     search_results_collection.insert_many(unique_jobs, ordered=False)
                     print(f"{len(unique_jobs)} neue Ergebnisse für Suchauftrag {alert['_id']} gespeichert.")
-                    # --- E-Mail-Benachrichtigung ---
+
+                    # E-Mail-Benachrichtigung
                     if email:
                         try:
                             subject = f"[Night Crawler] {len(unique_jobs)} neue Jobs für deinen Alert"
@@ -426,20 +446,21 @@ def execute_search_alerts():
                 print(f"0 neue Ergebnisse für Suchauftrag {alert['_id']} (evtl. alles schon vorhanden).")
 
 
-scheduler.add_job(execute_search_alerts, 'interval', hours=8)
+scheduler.add_job(execute_search_alerts, 'interval', hours=8)   # Alle 8 Stunden ausführen
 
 
+# Scheduler nur einmal starten (nicht im Reloader)
 def start_scheduler_once():
-    # im echten Main-Prozess starten (nicht im Reloader)
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:  # WERKZEUG_RUN_MAIN ist nur im Reloader gesetzt
         if not scheduler.running:
             scheduler.start()
             app.logger.info("APScheduler started")
 
 
-start_scheduler_once()
+start_scheduler_once()  # Scheduler starten
 
 
+# Endpoint zum Abrufen der Suchergebnisse für einen bestimmten Suchauftrag
 @app.route('/get_search_results/<string:alert_id>', methods=['GET'])
 @jwt_required()
 def get_search_results(alert_id):
@@ -452,6 +473,7 @@ def get_search_results(alert_id):
     return jsonify(results)
 
 
+# Authentifizierungs-Endpunkte
 @app.route("/auth/register", methods=["POST"])
 def register():
     data = request.json or {}
@@ -478,6 +500,7 @@ def register():
     return jsonify({"ok": True})
 
 
+# Endpoint zur E-Mail-Verifizierung
 @app.route("/auth/verify-email", methods=["POST"])
 def verify_email():
     token = (request.json or {}).get("token")
@@ -495,6 +518,7 @@ def verify_email():
     return jsonify({"ok": True})
 
 
+# Endpoint zum Einloggen und Ausgeben von JWT-Tokens
 @app.route("/auth/login", methods=["POST"])
 def login():
     data = request.json or {}
@@ -511,6 +535,7 @@ def login():
     return jsonify({"access": access, "refresh": refresh})
 
 
+# Endpoint zum Aktualisieren des Access-Tokens mit einem gültigen Refresh-Token
 @app.route("/auth/request-password-reset", methods=["POST"])
 def request_password_reset():
     data = request.json or {}
@@ -528,6 +553,7 @@ def request_password_reset():
     return jsonify({"ok": True})
 
 
+# Endpoint zum Zurücksetzen des Passworts mit einem gültigen Token
 @app.route("/auth/reset-password", methods=["POST"])
 def reset_password():
     data = request.json or {}
@@ -549,12 +575,14 @@ def reset_password():
     return jsonify({"ok": True})
 
 
+# JWT Token-Blacklist Überprüfung
 @jwt.token_in_blocklist_loader
 def check_if_token_revoked(jwt_header, jwt_payload):
     jti = jwt_payload["jti"]
     return revoked.find_one({"jti": jti}) is not None
 
 
+# Endpoint zum Ausloggen und Widerrufen des Access-Tokens
 @app.route("/auth/logout", methods=["POST"])
 @jwt_required()
 def logout():
@@ -565,9 +593,11 @@ def logout():
     return jsonify({"msg": "token revoked"})
 
 
+# Alle registrierten Routen ausgeben
 print("Registrierte Routen:")
 for rule in app.url_map.iter_rules():
     print(rule)
 
-if __name__ == '__main__':  # Startet die Flask-App
+# Startet die Flask-App
+if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3050)
