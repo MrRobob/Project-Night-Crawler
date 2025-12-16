@@ -55,7 +55,7 @@ except Exception as e:
 
 
 app = Flask(__name__)  # Erstellt eine Flask-Instanz
-FRONTEND_ORIGIN = os.getenv("PUBLIC_APP_URL", "http://localhost:5173")
+FRONTEND_ORIGIN = os.getenv("PUBLIC_APP_URL")
 CORS(app, resources={r"/*": {"origins": [FRONTEND_ORIGIN]}})
 Talisman(app, content_security_policy=None, force_https=False, strict_transport_security=False)  # Aktiviert Sicherheits-Header
 
