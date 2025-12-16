@@ -12,7 +12,11 @@
     "format:check": "prettier --check .",
     "format:fix": "prettier --write .",
     "lint:md": "markdownlint-cli2 '../README.md' '../backend/README.md' './README.md'",
-    "format:md": "markdownlint-cli2 '../README.md' '../backend/README.md' './README.md' --fix"
+    "format:md": "markdownlint-cli2 '../README.md' '../backend/README.md' './README.md' --fix",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:codegen": "playwright codegen http://localhost:5173"
   },
   "dependencies": {
     "react": "^19.1.1",
@@ -27,6 +31,7 @@
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "@playwright/test": "^1.50.1",
     "eslint": "^9.29.0",
     "esbuild": "0.25.9",
     "eslint-config-prettier": "^10.1.8",
